@@ -1,18 +1,22 @@
 import pandas as pd
 import numpy as np
+import os
 
 print("🚀 Starting Pipeline...")
 
 # ========================
 # 1. LOAD DATA
 # ========================
-lead_logs = pd.read_csv("lead_log.csv")
-paid_transactions = pd.read_csv("paid_transactions.csv")
-referral_rewards = pd.read_csv("referral_rewards.csv")
-user_logs = pd.read_csv("user_logs.csv")
-user_referral_logs = pd.read_csv("user_referral_logs.csv")
-user_referral_statuses = pd.read_csv("user_referral_statuses.csv")
-user_referrals = pd.read_csv("user_referrals.csv")
+
+BASE_PATH = os.path.dirname(os.path.abspath(__file__))
+
+lead_logs = pd.read_csv(os.path.join(BASE_PATH, "lead_log.csv"))
+paid_transactions = pd.read_csv(os.path.join(BASE_PATH, "paid_transactions.csv"))
+referral_rewards = pd.read_csv(os.path.join(BASE_PATH, "referral_rewards.csv"))
+user_logs = pd.read_csv(os.path.join(BASE_PATH, "user_logs.csv"))
+user_referral_logs = pd.read_csv(os.path.join(BASE_PATH, "user_referral_logs.csv"))
+user_referral_statuses = pd.read_csv(os.path.join(BASE_PATH, "user_referral_statuses.csv"))
+user_referrals = pd.read_csv(os.path.join(BASE_PATH, "user_referrals.csv"))
 
 print("✅ Data Loaded")
 
@@ -36,13 +40,28 @@ user_referrals.dropna(subset=['referral_id', 'referrer_id'], inplace=True)
 
 
 # ========================
-# 3. FIX COLUMN NAME CONFLICTS (VERY IMPORTANT)
+# 3. FIX COLUMN NAME CONFLICTS
 # ========================
 user_logs.rename(columns={"id": "user_log_id"}, inplace=True)
-user_referral_statuses.rename(columns={"id": "status_id", "created_at": "status_created_at"}, inplace=True)
-referral_rewards.rename(columns={"id": "reward_id", "created_at": "reward_created_at"}, inplace=True)
-lead_logs.rename(columns={"id": "lead_log_id", "created_at": "lead_created_at"}, inplace=True)
-user_referral_logs.rename(columns={"created_at": "reward_granted_at"}, inplace=True)
+
+user_referral_statuses.rename(columns={
+    "id": "status_id",
+    "created_at": "status_created_at"
+}, inplace=True)
+
+referral_rewards.rename(columns={
+    "id": "reward_id",
+    "created_at": "reward_created_at"
+}, inplace=True)
+
+lead_logs.rename(columns={
+    "id": "lead_log_id",
+    "created_at": "lead_created_at"
+}, inplace=True)
+
+user_referral_logs.rename(columns={
+    "created_at": "reward_granted_at"
+}, inplace=True)
 
 
 # ========================
@@ -98,14 +117,13 @@ print("✅ Tables Joined Successfully")
 # 5. TRANSFORMATIONS
 # ========================
 
-# Referral Source Category
 df['referral_source_category'] = np.where(
     df['referral_source'] == 'User Sign Up', 'Online',
     np.where(df['referral_source'] == 'Draft Transaction', 'Offline',
              df['source_category'])
 )
 
-# InitCap (DO NOT break PAID/NEW)
+# Avoid breaking PAID / NEW
 for col in df.select_dtypes(include='object').columns:
     if col not in ['homeclub', 'transaction_status', 'transaction_type']:
         df[col] = df[col].astype(str).str.title()
@@ -142,7 +160,7 @@ def check_valid(row):
         ):
             return True
 
-        # INVALID CONDITIONS
+        # Invalid cases
         if pd.notnull(row['reward_value']) and row['reward_value'] > 0 and row['description'] != "Berhasil":
             return False
 
@@ -200,7 +218,6 @@ final_df = df[[
     'is_business_logic_valid'
 ]]
 
-# Rename columns
 final_df.rename(columns={
     'name': 'referrer_name',
     'phone_number': 'referrer_phone_number',
@@ -213,10 +230,10 @@ final_df.dropna(inplace=True)
 
 
 # ========================
-# 8. SAVE OUTPUT
+# 8. SAVE OUTPUT (DOCKER FIX)
 # ========================
-final_df.to_csv("final_report.csv", index=False)
+output_path = os.getenv("OUTPUT_PATH", "final_report.csv")
+final_df.to_csv(output_path, index=False)
 
-print("🎯 Final Report Generated Successfully!")
-
-print(f"📊 Final Row Count: {len(final_df)}")
+print(f" Final Report Generated at: {output_path}")
+print(f" Final Row Count: {len(final_df)}")
